@@ -19,7 +19,9 @@ def load_approved_channels(path):
     """Load exact YouTube channel IDs from a JSON allowlist."""
     with open(path, encoding="utf-8") as source:
         data = json.load(source)
-    channel_ids = data.get("channel_ids", []) if isinstance(data, dict) else data
+    if isinstance(data, dict) and "channel_ids" not in data:
+        raise ValueError("Approved creator file must define channel_ids.")
+    channel_ids = data["channel_ids"] if isinstance(data, dict) else data
     if not isinstance(channel_ids, list):
         raise ValueError("Approved creator file must contain a channel_ids list.")
     cleaned = {str(channel_id).strip() for channel_id in channel_ids if str(channel_id).strip()}
