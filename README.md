@@ -50,6 +50,14 @@ $env:YOUTUBE_API_KEY = "YOUR_YOUTUBE_DATA_API_KEY"
 python find_streams.py "GTA 6" --max 25 --json
 ```
 
+Search broadly to discover candidate creators, then verify permission and add their exact YouTube channel IDs to `approved_creators.json` (copy `approved_creators.example.json`). For an approved-only search, use:
+
+```powershell
+python find_streams.py "GTA 6" --approved-channels approved_creators.json --approved-only --json
+```
+
+The allowlist is deliberately empty by default. Do not add a creator until their permission covers recording, editing, reposting, and any intended monetization. Channel IDs are used instead of display names to avoid name collisions.
+
 The YouTube API returns live search candidates in `viewCount` order. It is not a dependable ranking of current live viewers; open a candidate and confirm the stream before use.
 
 ## Make clips
