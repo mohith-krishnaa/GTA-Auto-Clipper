@@ -28,6 +28,14 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
+Before running the clipper, check which local dependencies are available. This check is read-only and never prints API-key values:
+
+```powershell
+python preflight.py
+```
+
+Use `python preflight.py --strict` in scripts or setup checks to return a non-zero exit code when a required dependency is missing.
+
 For live-stream search and optional YouTube live-chat scoring, set a YouTube Data API key in the terminal. Keep keys out of prompts, source files, and GitHub:
 
 ```powershell
