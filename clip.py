@@ -399,7 +399,7 @@ def write_ass(path, words, start, length, credit, caption_margin_v=400):
             ev.append(f"Dialogue: 0,{a_txt},{b_txt},Word,,0,0,0,,{{\\fs{fs}}}{' '.join(parts)}")
     if credit:
         ev.append(f"Dialogue: 1,{ass_time(0)},{ass_time(4)},Credit,,0,0,0,,via {credit}")
-    open(path, "w", encoding="utf-8").write(head + "\n".join(ev) + "\n")
+    with open(path, "w", encoding="utf-8") as ass_file:\n        ass_file.write(head + "\n".join(ev) + "\n")
 
 
 def gameplay_crop_offset(frame_width, frame_height, player_x=None):
