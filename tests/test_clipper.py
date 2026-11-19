@@ -133,7 +133,7 @@ class PopCaptionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "c.ass")
             write_ass(path, WordTimings(words, "en", "English"), 0, 30, None, 400)
-            return [l for l in open(path, encoding="utf-8").read().splitlines() if l.startswith("Dialogue: 0,")]
+            with open(path, encoding="utf-8") as ass_file:\n                return [l for l in ass_file.read().splitlines() if l.startswith("Dialogue: 0,")]
 
     @staticmethod
     def _secs(t):
