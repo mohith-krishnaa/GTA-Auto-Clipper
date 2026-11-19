@@ -35,15 +35,22 @@ class ApprovedCreatorTests(unittest.TestCase):
         class Response:
             def __enter__(self): return self
             def __exit__(self, *args): return False
-        def fake_urlopen(request, timeout):
-            Response.read = lambda self: json.dumps(payload).encode("utf-8")
-            return ResponseWithJson(payload)
         class ResponseWithJson(Response):
             def __init__(self, data): self.data = data
         with patch("find_streams.urllib.request.urlopen", side_effect=lambda *args, **kwargs: ResponseWithJson(payload)):
             with patch("find_streams.json.load", side_effect=lambda response: response.data):
                 streams = find_streams.find_streams("GTA", "test-key", approved_channel_ids={"UC-allowed"})
         self.assertEqual([stream["channel_id"] for stream in streams], ["UC-allowed"])
+
+    def test_rejects_allowlist_without_channel_ids(self):
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".json", delete=False) as handle:
+            json.dump({"creators": ["UC123"]}, handle)
+            path = handle.name
+        try:
+            with self.assertRaises(ValueError):
+                find_streams.load_approved_channels(path)
+        finally:
+            os.unlink(path)
 
     def test_none_allowlist_keeps_discovery_mode_unfiltered(self):
         payload = {"items": [
