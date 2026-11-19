@@ -15,7 +15,18 @@ import urllib.request
 API = "https://www.googleapis.com/youtube/v3/search"
 
 
-def find_streams(query, api_key, limit=25):
+def load_approved_channels(path):
+    """Load exact YouTube channel IDs from a JSON allowlist."""
+    with open(path, encoding="utf-8") as source:
+        data = json.load(source)
+    channel_ids = data.get("channel_ids", []) if isinstance(data, dict) else data
+    if not isinstance(channel_ids, list):
+        raise ValueError("Approved creator file must contain a channel_ids list.")
+    cleaned = {str(channel_id).strip() for channel_id in channel_ids if str(channel_id).strip()}
+    return cleaned
+
+
+def find_streams(query, api_key, limit=25, approved_channel_ids=None):
     params = urllib.parse.urlencode({
         "part": "snippet", "eventType": "live", "type": "video", "q": query,
         "maxResults": min(max(limit, 1), 50), "order": "viewCount", "key": api_key,
@@ -29,10 +40,13 @@ def find_streams(query, api_key, limit=25):
         video_id = item.get("id", {}).get("videoId")
         if not video_id:
             continue
+        channel_id = snippet.get("channelId", "")
+        if approved_channel_ids is not None and channel_id not in approved_channel_ids:
+            continue
         streams.append({
             "title": html.unescape(snippet.get("title", "")),
             "channel": snippet.get("channelTitle", ""),
-            "channel_id": snippet.get("channelId", ""),
+            "channel_id": channel_id,
             "published_at": snippet.get("publishedAt"),
             "url": f"https://www.youtube.com/watch?v={video_id}",
             "rank_signal": "YouTube search order=viewCount; not current live viewers",
@@ -50,12 +64,17 @@ def main():
     parser.add_argument("query", nargs="?", default="GTA 6")
     parser.add_argument("--max", type=int, default=25, help="candidate count (maximum 50)")
     parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
+    parser.add_argument("--approved-channels", help="JSON allowlist; only these exact YouTube channel IDs are returned")
+    parser.add_argument("--approved-only", action="store_true", help="require an allowlist and return only approved creators")
     args = parser.parse_args()
     api_key = os.environ.get("YOUTUBE_API_KEY")
     if not api_key:
         sys.exit("Set YOUTUBE_API_KEY in your environment before searching.")
+    if args.approved_only and not args.approved_channels:
+        parser.error("--approved-only requires --approved-channels.")
     try:
-        streams = find_streams(args.query, api_key, args.max)
+        approved = load_approved_channels(args.approved_channels) if args.approved_channels else None
+        streams = find_streams(args.query, api_key, args.max, approved_channel_ids=approved)
     except urllib.error.HTTPError as error:
         sys.exit(f"YouTube API returned HTTP {error.code}; check the API key and quota.")
     except Exception as error:
