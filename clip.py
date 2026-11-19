@@ -57,6 +57,19 @@ def source_identity(info, test=False):
     }
 
 
+def source_gate_error(test=False, source_permission_confirmed=False, gameplay_confirmed=False):
+    """Require explicit rights and gameplay checks before any production capture or render."""
+    if test:
+        return None
+    if not source_permission_confirmed:
+        return ("Production processing stopped: obtain permission from the footage owner to edit and repost "
+                "the source, then rerun with --source-permission-confirmed.")
+    if not gameplay_confirmed:
+        return ("Production processing stopped: visually confirm that actual GTA gameplay is visible, "
+                "then rerun with --gameplay-confirmed.")
+    return None
+
+
 # ---------- recording ----------
 def start_recorder(url, file_, chunk, max_seconds, outdir):
     os.makedirs(outdir, exist_ok=True)
@@ -615,7 +628,11 @@ def main():
                     help="seconds before the detected moment to start each clip")
     ap.add_argument("--top", type=int, default=1, help="clips per chunk")
     ap.add_argument("--gameplay-confirmed", action="store_true",
-                    help="confirm you visually checked that the source shows actual GTA gameplay before a live capture")
+                    help="confirm you visually checked that the source shows actual GTA gameplay")
+    ap.add_argument("--source-permission-confirmed", action="store_true",
+                    help="confirm the footage owner has permitted editing and reposting this source")
+    ap.add_argument("--source-name", default=None,
+                    help="creator/channel name for an authorized local video file")
     ap.add_argument("--layout", choices=("fill", "fit"), default="fill",
                     help="fill (default): gameplay covers the full 9:16 screen, centered and shifted away from a side "
                          "facecam; fit: whole source in the middle over a blurred background")
@@ -634,28 +651,29 @@ def main():
     _forced_language = None if a.spoken_language == "auto" else a.spoken_language
     if not a.url and not a.file:
         sys.exit(__doc__)
-    if a.file and not a.test:
-        sys.exit("--file is only allowed with --test.")
     if a.file:
         a.file = os.path.abspath(a.file)
         if not os.path.isfile(a.file):
             sys.exit(f"Input file not found: {a.file}")
     if a.max_seconds < 0 or a.chunk < 1 or a.clip_len < 1 or a.top < 1:
         sys.exit("--max-seconds must be 0 or more; --chunk, --clip-len and --top must be positive.")
-    if a.url and not a.test and not a.gameplay_confirmed:
-        sys.exit("Live capture stopped: first inspect the source video and confirm actual GTA gameplay is visible. "
-                 "Then rerun with --gameplay-confirmed. A GTA title or facecam alone is not gameplay.")
+    gate_error = source_gate_error(
+        test=a.test,
+        source_permission_confirmed=a.source_permission_confirmed,
+        gameplay_confirmed=a.gameplay_confirmed,
+    )
+    if gate_error:
+        sys.exit(gate_error)
     if a.no_chat:
         a.moment_source = "audio"
 
     if a.url:
         info = stream_info(a.url)
-        if not info.get("is_live") and not a.test:
-            sys.exit("The source is not live. Use --test for a local/non-live test input.")
         who = source_identity(info, a.test)
         title = info.get("title", "")
     else:
-        who, title, info = source_identity({"uploader": "local source"}, True), os.path.basename(a.file), {}
+        who = source_identity({"uploader": a.source_name or "local source"}, a.test)
+        title, info = os.path.basename(a.file), {}
     out_dir = os.path.abspath(a.output_dir) if a.output_dir else (TEST_OUT if who["test"] else OUTPUT_DIR)
     os.makedirs(out_dir, exist_ok=True)
     wdir = os.path.join(WORK, datetime.now().strftime("%Y%m%d-%H%M%S"))
@@ -736,6 +754,7 @@ def main():
                             "caption_position": "lower-third-of-visible-gameplay",
                             "framing": "fill-9x16" if smart_crop else "full-source-blur-fill",
                             "gameplay_confirmed": a.gameplay_confirmed,
+                            "source_permission_confirmed": a.source_permission_confirmed,
                             "moment_source_requested": a.moment_source,
                             "moment_source_used": chunk_moment_source,
                             "selection_signals": selection_signals,
