@@ -12,7 +12,7 @@ from clip import (
     write_ass,
     build_video_filter, choose_crop_offset, choose_vertical_game_roi, gameplay_crop_offset, reaction_score,
     should_apply_smart_crop,
-    source_identity, select_clip_start,
+    source_identity, source_gate_error, select_clip_start,
     DEFAULT_MAX_SECONDS, pick_moments, mask_word, ytdlp_cmd,
 )
 
@@ -87,6 +87,20 @@ class ClipperReleaseTests(unittest.TestCase):
         source = source_identity({'uploader': 'Creator', 'channel_id': 'UC-new'}, test=False)
         self.assertEqual(source['name'], 'Creator')
         self.assertFalse(source['test'])
+
+    def test_production_source_requires_owner_permission(self):
+        error = source_gate_error(source_permission_confirmed=False, gameplay_confirmed=True)
+        self.assertIn("--source-permission-confirmed", error)
+
+    def test_production_source_requires_visual_gameplay_confirmation(self):
+        error = source_gate_error(source_permission_confirmed=True, gameplay_confirmed=False)
+        self.assertIn("--gameplay-confirmed", error)
+
+    def test_test_mode_bypasses_production_source_gates(self):
+        self.assertIsNone(source_gate_error(test=True))
+
+    def test_production_source_passes_when_both_confirmations_are_set(self):
+        self.assertIsNone(source_gate_error(source_permission_confirmed=True, gameplay_confirmed=True))
 
     def test_live_capture_defaults_to_running_until_stopped(self):
         self.assertEqual(DEFAULT_MAX_SECONDS, 0)
