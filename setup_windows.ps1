@@ -38,7 +38,11 @@ if (-not $runtime) { $runtime = Get-Command node -ErrorAction SilentlyContinue }
 if (-not $runtime) { Write-Warning "Node.js or Deno was not found. Install one for YouTube extraction." }
 
 Write-Host "Running environment check..."
-& $venvPython preflight.py
+if ($ffmpeg) {
+    & $venvPython preflight.py --strict
+} else {
+    & $venvPython preflight.py
+}
 if ($LASTEXITCODE -ne 0) { throw "Environment check failed." }
 if (-not $ffmpeg) { throw "Python dependencies are installed, but FFmpeg is still required. Install it and rerun the strict preflight check." }
 Write-Host "Setup complete. Run the project with: .\.venv\Scripts\python.exe clip.py --help"
