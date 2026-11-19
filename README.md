@@ -28,6 +28,21 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
+On Windows, you can run the setup script instead. It creates `.venv`, installs the Python dependencies, and checks FFmpeg and the JavaScript runtime:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+.\\setup_windows.ps1
+```
+
+Before running the clipper, check which local dependencies are available. This check is read-only and never prints API-key values:
+
+```powershell
+python preflight.py
+```
+
+Use `python preflight.py --strict` in scripts or setup checks to return a non-zero exit code when a required dependency is missing.
+
 For live-stream search and optional YouTube live-chat scoring, set a YouTube Data API key in the terminal. Keep keys out of prompts, source files, and GitHub:
 
 ```powershell
@@ -35,14 +50,28 @@ $env:YOUTUBE_API_KEY = "YOUR_YOUTUBE_DATA_API_KEY"
 python find_streams.py "GTA 6" --max 25 --json
 ```
 
+Search broadly to discover candidate creators, then verify permission and add their exact YouTube channel IDs to `approved_creators.json` (copy `approved_creators.example.json`). For an approved-only search, use:
+
+```powershell
+python find_streams.py "GTA 6" --approved-channels approved_creators.json --approved-only --json
+```
+
+The allowlist is deliberately empty by default. Do not add a creator until their permission covers recording, editing, reposting, and any intended monetization. Channel IDs are used instead of display names to avoid name collisions.
+
 The YouTube API returns live search candidates in `viewCount` order. It is not a dependable ranking of current live viewers; open a candidate and confirm the stream before use.
 
 ## Make clips
 
-Open the candidate stream and verify that actual GTA gameplay is visible in the video. A GTA title, thumbnail, or talking head is not enough. Then start capture and keep it running until you press Ctrl+C. The default is chat-first. If chat is unavailable or has no messages for a chunk, the clipper automatically uses audio and speech instead. The clipper writes each selected highlight to `output/`:
+Use a live stream or an authorized creator VOD/local video. Obtain the footage owner's permission to edit and repost it, then verify that actual GTA gameplay is visible. A GTA title, thumbnail, or talking head is not enough. Production processing requires both `--source-permission-confirmed` and `--gameplay-confirmed`. Then start capture and keep it running until you press Ctrl+C. The default is chat-first. If chat is unavailable or has no messages for a chunk, the clipper automatically uses audio and speech instead. The clipper writes each selected highlight to `output/`:
 
 ```powershell
-python clip.py "https://www.youtube.com/watch?v=VIDEO_ID" --gameplay-confirmed --max-seconds 0 --clip-len 30 --lead-in 6 --top 2
+python clip.py "https://www.youtube.com/watch?v=VIDEO_ID" --source-permission-confirmed --gameplay-confirmed --max-seconds 0 --clip-len 30 --lead-in 6 --top 2
+```
+
+For an authorized recorded stream or local source, use the same explicit confirmations. The creator name can be supplied for a local file:
+
+```powershell
+python clip.py --file "C:\\videos\\creator-gameplay.mp4" --source-name "Creator Name" --source-permission-confirmed --gameplay-confirmed --clip-len 30 --top 2
 ```
 
 Important options:
@@ -54,7 +83,9 @@ Important options:
 | `--clip-len` | `30` | Rendered highlight length |
 | `--lead-in` | `6` | Seconds before the detected moment |
 | `--top` | `1` | Highlights kept from each chunk |
-| `--gameplay-confirmed` | required for live capture | Confirm you inspected the stream and saw actual gameplay before recording |
+| `--gameplay-confirmed` | required for production processing | Confirm you inspected the source and saw actual gameplay |
+| `--source-permission-confirmed` | required for production processing | Confirm the footage owner permitted editing and reposting |
+| `--source-name` | local source | Creator/channel name to record in metadata for a local file |
 | `--min-score` | `2.5` | Minimum moment score |
 | `--layout` | `fill` | `fill`: gameplay covers the full 9:16 screen, facecams cropped out. `fit`: full source in the middle over a blurred background |
 | `--crop` | off | Old flag, same as `--layout fill` |
