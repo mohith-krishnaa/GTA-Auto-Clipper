@@ -28,6 +28,13 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
+On Windows, you can run the setup script instead. It creates `.venv`, installs the Python dependencies, and checks FFmpeg and the JavaScript runtime:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+.\\setup_windows.ps1
+```
+
 Before running the clipper, check which local dependencies are available. This check is read-only and never prints API-key values:
 
 ```powershell
