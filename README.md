@@ -47,10 +47,16 @@ The YouTube API returns live search candidates in `viewCount` order. It is not a
 
 ## Make clips
 
-Open the candidate stream and verify that actual GTA gameplay is visible in the video. A GTA title, thumbnail, or talking head is not enough. Then start capture and keep it running until you press Ctrl+C. The default is chat-first. If chat is unavailable or has no messages for a chunk, the clipper automatically uses audio and speech instead. The clipper writes each selected highlight to `output/`:
+Use a live stream or an authorized creator VOD/local video. Obtain the footage owner's permission to edit and repost it, then verify that actual GTA gameplay is visible. A GTA title, thumbnail, or talking head is not enough. Production processing requires both `--source-permission-confirmed` and `--gameplay-confirmed`. Then start capture and keep it running until you press Ctrl+C. The default is chat-first. If chat is unavailable or has no messages for a chunk, the clipper automatically uses audio and speech instead. The clipper writes each selected highlight to `output/`:
 
 ```powershell
-python clip.py "https://www.youtube.com/watch?v=VIDEO_ID" --gameplay-confirmed --max-seconds 0 --clip-len 30 --lead-in 6 --top 2
+python clip.py "https://www.youtube.com/watch?v=VIDEO_ID" --source-permission-confirmed --gameplay-confirmed --max-seconds 0 --clip-len 30 --lead-in 6 --top 2
+```
+
+For an authorized recorded stream or local source, use the same explicit confirmations. The creator name can be supplied for a local file:
+
+```powershell
+python clip.py --file "C:\\videos\\creator-gameplay.mp4" --source-name "Creator Name" --source-permission-confirmed --gameplay-confirmed --clip-len 30 --top 2
 ```
 
 Important options:
@@ -62,7 +68,9 @@ Important options:
 | `--clip-len` | `30` | Rendered highlight length |
 | `--lead-in` | `6` | Seconds before the detected moment |
 | `--top` | `1` | Highlights kept from each chunk |
-| `--gameplay-confirmed` | required for live capture | Confirm you inspected the stream and saw actual gameplay before recording |
+| `--gameplay-confirmed` | required for production processing | Confirm you inspected the source and saw actual gameplay |
+| `--source-permission-confirmed` | required for production processing | Confirm the footage owner permitted editing and reposting |
+| `--source-name` | local source | Creator/channel name to record in metadata for a local file |
 | `--min-score` | `2.5` | Minimum moment score |
 | `--layout` | `fill` | `fill`: gameplay covers the full 9:16 screen, facecams cropped out. `fit`: full source in the middle over a blurred background |
 | `--crop` | off | Old flag, same as `--layout fill` |
