@@ -114,7 +114,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         for word in group:
             token = ass_escape(word["text"])
             duration_cs = max(1, round((word["end"] - word["start"]) * 100))
-            karaoke.append(f"{{\\\\kf{duration_cs}}}{token}")
+            karaoke.append("{" + chr(92) + f"kf{duration_cs}" + "}" + token)
         event_start = group[0]["start"] - start
         event_end = max(event_start + 0.12, group[-1]["end"] - start)
         events.append(
