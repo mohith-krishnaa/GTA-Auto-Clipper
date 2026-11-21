@@ -12,7 +12,7 @@ import requests
 import streamlit as st
 from faster_whisper import WhisperModel
 from clip_utils import chunk_transcript, crop_x_expression, group_caption_words, normalize_clips
-from visual_utils import rank_visual_windows
+from visual_utils import detect_gta_hud_cues, rank_gta_event_windows, rank_visual_windows
 
 st.set_page_config(page_title="MK AI Clipper", page_icon="✂️", layout="wide")
 
@@ -36,6 +36,7 @@ with st.sidebar:
                               help="Tiny/base are better for low-memory computers. First run downloads the model.")
     clip_count = st.slider("Clips to generate", 1, 10, 5)
     detect_visual = st.checkbox("Find gameplay/action moments (experimental)", value=True)
+    detect_gta_events = st.checkbox("Detect GTA HUD events with OCR (experimental)", value=False, help="Looks for WASTED, BUSTED, MISSION PASSED, RACE WINNER and similar overlays. Requires Tesseract OCR installed.")
     min_len, max_len = st.slider("Clip duration (seconds)", 15, 90, (25, 55))
     st.caption("Requires FFmpeg installed and available in PATH.")
 
@@ -151,6 +152,34 @@ def scan_visual_activity(video, duration, sample_seconds=1.0):
         capture.release()
     return samples
 
+def scan_gta_hud_text(video, duration, sample_seconds=1.0):
+    """OCR sampled frames for recognizable GTA end-state and objective overlays."""
+    import pytesseract
+    command = os.environ.get('TESSERACT_CMD')
+    if command:
+        pytesseract.pytesseract.tesseract_cmd = command
+    capture = cv2.VideoCapture(video)
+    if not capture.isOpened():
+        raise RuntimeError("OpenCV could not open the video for GTA HUD OCR.")
+    samples = []
+    timestamp = 0.0
+    try:
+        while timestamp < duration:
+            capture.set(cv2.CAP_PROP_POS_MSEC, timestamp * 1000)
+            ok, frame = capture.read()
+            if ok:
+                height, width = frame.shape[:2]
+                roi = frame[int(height * 0.08):int(height * 0.88), int(width * 0.08):int(width * 0.92)]
+                gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+                gray = cv2.resize(gray, None, fx=1.5, fy=1.5, interpolation=cv2.INTER_CUBIC)
+                processed = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
+                text = pytesseract.image_to_string(processed, config='--psm 11')
+                samples.append({'timestamp': timestamp, 'text': text})
+            timestamp += sample_seconds
+    finally:
+        capture.release()
+    return detect_gta_hud_cues(samples)
+
 def detect_face_crop_points(video, start, end, sample_seconds=0.75):
     """Sample the clip for faces and return crop centers in source-pixel coordinates."""
     capture = cv2.VideoCapture(video)
@@ -208,8 +237,8 @@ def render_clip(video, words, clip, out_path, temp_dir):
 if uploaded:
     st.video(uploaded)
     if st.button("Analyze video and find clips", type="primary", use_container_width=True):
-        if not api_key and not detect_visual:
-            st.error("Enter a Gemini API key or enable visual activity detection.")
+        if not api_key and not detect_visual and not detect_gta_events:
+            st.error("Enter a Gemini API key or enable a local visual detector.")
         elif not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
             st.error("FFmpeg and FFprobe must both be installed and available in PATH.")
         else:
@@ -260,6 +289,15 @@ if uploaded:
                             with st.spinner("Scanning sampled frames for motion and scene changes..."):
                                 visual_samples = scan_visual_activity(job["source"], duration)
                             candidates.extend(rank_visual_windows(visual_samples, duration, clip_count, min_len, max_len))
+                        if detect_gta_events:
+                            try:
+                                with st.spinner("Reading sampled frames for GTA HUD event cues..."):
+                                    gta_hits = scan_gta_hud_text(job["source"], duration)
+                                candidates.extend(rank_gta_event_windows(gta_hits, duration, clip_count, (min_len + max_len) / 2))
+                                if not gta_hits:
+                                    st.info("No recognized GTA HUD cues found. OCR may miss stylized, small, or obscured text.")
+                            except Exception as exc:
+                                st.warning(f"GTA HUD OCR unavailable: {exc}. Install Tesseract OCR and retry.")
                         clean = normalize_clips(candidates, duration, clip_count, min_len, max_len)
                         if not clean and failures and not detect_visual:
                             raise RuntimeError("Gemini analysis failed for every transcript chunk. " + failures[0])
