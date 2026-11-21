@@ -7,9 +7,10 @@ A general-purpose, local-first AI clipping MVP for podcasts, interviews, gaming 
 - Upload a local video (MP4, MOV, MKV, WebM or M4V).
 - Transcribe speech locally with faster-whisper (CPU int8).
 - Ask Gemini 2.5 Flash to identify and rank self-contained moments.
+- Validate model timestamps, reject malformed candidates and remove overlapping selections.
 - Review and select candidate clips before rendering.
 - Export 9:16 MP4 clips with blurred background fill and burned-in word captions.
-- Gemini key is entered at runtime and is not stored by the app.
+- Gemini key is entered at runtime and sent in an HTTP header; it is not saved by the app.
 
 ## Requirements
 
@@ -28,7 +29,11 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Open the local Streamlit URL shown in the terminal.
+Run validation tests:
+
+```powershell
+python -m unittest discover -s tests -v
+```
 
 ## Workflow
 
@@ -40,17 +45,17 @@ Open the local Streamlit URL shown in the terminal.
 
 ## Notes and limitations
 
-- This is an MVP focused on spoken content. Silent action/gameplay highlight detection is not implemented yet.
+- This MVP focuses on spoken content. Silent action/gameplay highlight detection is not implemented.
 - Local Whisper transcription can be slow on CPU. The first run downloads the selected model.
-- Gemini receives transcript text only, not the uploaded video or audio.
-- Vertical output uses a blurred background and centered full-frame foreground; speaker/face tracking is not implemented yet.
+- Gemini receives transcript text only, not the uploaded video or audio. Very long transcripts are capped before AI analysis, so later portions may not be considered.
+- Vertical output uses a blurred background and centered full-frame foreground; speaker/face tracking is not implemented.
 - No automatic publishing, campaign scraping, or view/earnings guarantees.
 - AI scores are suggestions, not predictions of virality.
 - Respect source ownership, creator permissions, campaign rules and platform terms. Credit alone is not permission.
 
 ## Privacy
 
-Video processing and transcription happen locally. Only the transcript text and timestamps are sent to Google's Gemini API for moment selection. The API key is held in the current app session and is not written to disk.
+Video processing and transcription happen locally. Only transcript text and timestamps are sent to Google's Gemini API for moment selection. The API key is held in the current app session and is not written to disk.
 
 ## License
 
