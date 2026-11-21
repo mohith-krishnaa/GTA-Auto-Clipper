@@ -9,7 +9,7 @@ from pathlib import Path
 import requests
 import streamlit as st
 from faster_whisper import WhisperModel
-from clip_utils import normalize_clips
+from clip_utils import chunk_transcript, normalize_clips
 
 st.set_page_config(page_title="MK AI Clipper", page_icon="✂️", layout="wide")
 
@@ -152,12 +152,12 @@ if uploaded:
                 try:
                     extract_audio(source, audio)
                     segments, words, language = transcribe(audio, model_size)
-                    transcript = "\n".join(f"[{r['start']:.1f}s] {r['text']}" for r in segments)
-                    if not transcript.strip():
+                    transcript_chunks = chunk_transcript(segments)
+                    if not transcript_chunks:
                         raise ValueError("No speech was detected. This MVP currently selects moments from spoken content.")
                     st.session_state["clip_job"] = {
                         "workdir": workdir, "source": source, "words": words,
-                        "language": language, "transcript": transcript,
+                        "language": language, "transcript_chunks": transcript_chunks,
                     }
                 except Exception as exc:
                     st.error(f"Processing failed: {exc}")
@@ -166,15 +166,34 @@ if uploaded:
             if job and job.get("source") == source:
                 with st.spinner("AI is ranking the strongest moments..."):
                     try:
-                        clips = ask_gemini(api_key, job["transcript"], clip_count, min_len, max_len)
                         probe = run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
                                      "-of", "default=noprint_wrappers=1:nokey=1", job["source"]])
                         if probe.returncode:
                             raise RuntimeError("FFprobe could not read the uploaded video: " + probe.stderr[-800:])
                         duration = float(probe.stdout.strip())
-                        clean = normalize_clips(clips, duration, clip_count, min_len, max_len)
+                        candidates = []
+                        failures = []
+                        progress = st.progress(0, text="Analyzing transcript chunks...")
+                        total_chunks = len(job["transcript_chunks"])
+                        for index, transcript_chunk in enumerate(job["transcript_chunks"], 1):
+                            try:
+                                candidates.extend(
+                                    ask_gemini(api_key, transcript_chunk, clip_count, min_len, max_len)
+                                )
+                            except Exception as exc:
+                                failures.append(f"Chunk {index}: {exc}")
+                            progress.progress(index / total_chunks,
+                                               text=f"Analyzed chunk {index} of {total_chunks}")
+                        clean = normalize_clips(candidates, duration, clip_count, min_len, max_len)
+                        if not clean and failures:
+                            raise RuntimeError("Gemini analysis failed for every transcript chunk. " + failures[0])
+                        if failures:
+                            st.warning(f"{len(failures)} transcript chunk(s) could not be analyzed; results may be incomplete.")
+                        if not clean:
+                            st.warning("No valid clips were returned. Try a different clip duration or Whisper model.")
                         st.session_state["clip_job"]["clips"] = clean
                         st.session_state["clip_job"]["duration"] = duration
+                        st.session_state["clip_job"]["transcript_chunks"] = []
                     except Exception as exc:
                         st.error(f"AI analysis failed: {exc}")
 
