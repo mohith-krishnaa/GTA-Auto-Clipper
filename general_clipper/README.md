@@ -5,7 +5,7 @@ A general-purpose, local-first AI clipping MVP for podcasts, interviews, gaming 
 ## Features
 
 - Upload a local video (MP4, MOV, MKV, WebM or M4V).
-- Transcribe speech locally with faster-whisper (CPU int8).
+- Transcribe speech locally with faster-whisper (CPU int8), then analyze the complete transcript in bounded chunks.
 - Ask Gemini 2.5 Flash to identify and rank self-contained moments.
 - Validate model timestamps, reject malformed candidates and remove overlapping selections.
 - Review and select candidate clips before rendering.
