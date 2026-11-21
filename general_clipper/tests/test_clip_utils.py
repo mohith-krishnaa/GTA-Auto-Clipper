@@ -1,6 +1,6 @@
 import unittest
 
-from clip_utils import chunk_transcript, crop_x_expression, normalize_clips
+from clip_utils import chunk_transcript, crop_x_expression, group_caption_words, normalize_clips
 
 
 class NormalizeClipsTests(unittest.TestCase):
@@ -31,6 +31,20 @@ class NormalizeClipsTests(unittest.TestCase):
     def test_crop_expression_clamps_to_frame_bounds(self):
         expression = crop_x_expression([(0, -100)], 400, 1200)
         self.assertEqual(expression, "0.00")
+
+    def test_caption_words_are_clipped_and_grouped(self):
+        words = [
+            {"start": 0.0, "end": 0.2, "text": "Hello"},
+            {"start": 0.21, "end": 0.4, "text": "there"},
+            {"start": 0.5, "end": 0.7, "text": "friend"},
+            {"start": 2.0, "end": 2.2, "text": "Next"},
+            {"start": 2.21, "end": 2.4, "text": "part"},
+        ]
+        groups = group_caption_words(words, 0.1, 2.3, max_words=3, max_gap=0.55)
+        self.assertEqual([[w["text"] for w in group] for group in groups],
+                         [["Hello", "there", "friend"], ["Next"]])
+        self.assertEqual(groups[0][0]["start"], 0.1)
+        self.assertEqual(groups[-1][-1]["end"], 2.3)
 
     def test_rejects_invalid_and_out_of_range_candidates(self):
         result = normalize_clips([
