@@ -29,6 +29,8 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
+The CI workflow also compiles the Python modules to catch syntax errors before running tests.
+
 Run validation tests:
 
 ```powershell
