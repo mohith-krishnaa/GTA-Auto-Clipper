@@ -49,7 +49,7 @@ python -m unittest discover -s tests -v
 
 - This MVP focuses on spoken content. Silent action/gameplay highlight detection is not implemented.
 - Local Whisper transcription can be slow on CPU. The first run downloads the selected model.
-- Gemini receives transcript text only, not the uploaded video or audio. Very long transcripts are capped before AI analysis, so later portions may not be considered.
+- Gemini receives transcript text only, not the uploaded video or audio. Long transcripts are split into bounded requests so later portions are analyzed too; API quotas and processing time increase with video length.
 - Vertical output uses sampled Haar face detection to keep the largest visible face near the crop center, with a centered fallback when no face is detected. It is not identity-aware multi-speaker tracking and does not track gameplay objects.
 - No automatic publishing, campaign scraping, or view/earnings guarantees.
 - AI scores are suggestions, not predictions of virality.
