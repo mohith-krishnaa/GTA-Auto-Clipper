@@ -9,10 +9,10 @@ class NormalizeClipsTests(unittest.TestCase):
             {"start": -1, "end": 20, "score": 90},
             {"start": 10, "end": 10, "score": 80},
             {"start": 10, "end": 20, "score": "bad"},
-            {"start": 20, "end": 35, "score": 75},
+            {"start": 15, "end": 29, "score": 75},
         ], duration=30, count=5, min_length=10, max_length=20)
         self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]["start"], 20)
+        self.assertEqual(result[0]["start"], 15)
 
     def test_keeps_highest_scoring_non_overlapping_clips(self):
         result = normalize_clips([
