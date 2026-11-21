@@ -1,6 +1,7 @@
 import unittest
 
 from clip_utils import chunk_transcript, crop_x_expression, group_caption_words, normalize_clips
+from visual_utils import rank_visual_windows
 
 
 class NormalizeClipsTests(unittest.TestCase):
@@ -79,6 +80,26 @@ class NormalizeClipsTests(unittest.TestCase):
             {"start": 20, "end": float("inf"), "score": 90},
         ], duration=100, count=5, min_length=10, max_length=30)
         self.assertEqual(result, [])
+
+
+class VisualWindowTests(unittest.TestCase):
+    def test_ranks_high_activity_windows_without_overlap(self):
+        samples = [{"timestamp": i, "motion": 0.02, "cut": 0.0} for i in range(100)]
+        samples += [{"timestamp": i, "motion": 0.8, "cut": 0.3} for i in range(20, 35)]
+        samples += [{"timestamp": i, "motion": 0.7, "cut": 0.2} for i in range(65, 80)]
+        clips = rank_visual_windows(samples, 100, 3, 15, 25, step=5)
+        self.assertEqual(len(clips), 2)
+        self.assertTrue(all(clip["score"] > 0 for clip in clips))
+        self.assertTrue(all(clips[i]["end"] <= clips[i + 1]["start"] for i in range(len(clips) - 1)))
+
+    def test_static_footage_returns_no_false_candidates(self):
+        samples = [{"timestamp": i, "motion": 0.0, "cut": 0.0} for i in range(60)]
+        self.assertEqual(rank_visual_windows(samples, 60, 5, 15, 25), [])
+
+    def test_ignores_invalid_visual_samples(self):
+        samples = [{"timestamp": float("nan"), "motion": 1}, {"timestamp": 10, "motion": 0.9, "cut": 0.2}]
+        clips = rank_visual_windows(samples, 40, 2, 15, 20)
+        self.assertTrue(all(0 <= clip["start"] < clip["end"] <= 40 for clip in clips))
 
 
 if __name__ == "__main__":
