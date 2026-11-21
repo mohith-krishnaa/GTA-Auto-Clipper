@@ -4,12 +4,14 @@ import re
 import shutil
 import subprocess
 import tempfile
+
+import cv2
 from pathlib import Path
 
 import requests
 import streamlit as st
 from faster_whisper import WhisperModel
-from clip_utils import chunk_transcript, crop_x_expression, normalize_clips
+from clip_utils import chunk_transcript, crop_x_expression, group_caption_words, normalize_clips
 
 st.set_page_config(page_title="MK AI Clipper", page_icon="✂️", layout="wide")
 
@@ -107,12 +109,17 @@ Style: Default,Arial,76,&H00FFFFFF,&H0000FFFF,&H00101010,&H80000000,1,0,1,5,2,2,
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     events = []
-    for w in words:
-        a, b = max(start, w["start"]), min(end, w["end"])
-        if b <= a:
-            continue
-        token = ass_escape(w["text"])
-        events.append(f"Dialogue: 0,{ass_time(a-start)},{ass_time(max(a-start+0.12,b-start))},Default,,0,0,0,,{token}")
+    for group in group_caption_words(words, start, end, max_words=5, max_gap=0.55):
+        karaoke = []
+        for word in group:
+            token = ass_escape(word["text"])
+            duration_cs = max(1, round((word["end"] - word["start"]) * 100))
+            karaoke.append(f"{{\\\\kf{duration_cs}}}{token}")
+        event_start = group[0]["start"] - start
+        event_end = max(event_start + 0.12, group[-1]["end"] - start)
+        events.append(
+            f"Dialogue: 0,{ass_time(event_start)},{ass_time(event_end)},Default,,0,0,0,,{' '.join(karaoke)}"
+        )
     Path(path).write_text(header + "\n".join(events), encoding="utf-8")
 
 def detect_face_crop_points(video, start, end, sample_seconds=0.75):
