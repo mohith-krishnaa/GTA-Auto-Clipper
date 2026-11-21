@@ -1,9 +1,27 @@
 import unittest
 
-from clip_utils import normalize_clips
+from clip_utils import chunk_transcript, normalize_clips
 
 
 class NormalizeClipsTests(unittest.TestCase):
+    def test_chunks_keep_all_segments_and_absolute_timestamps(self):
+        segments = [
+            {"start": 0, "text": "Opening"},
+            {"start": 120, "text": "Middle"},
+            {"start": 240, "text": "Ending"},
+        ]
+        chunks = chunk_transcript(segments, max_chars=1000)
+        joined = "\\n".join(chunks)
+        self.assertIn("[0.0s] Opening", joined)
+        self.assertIn("[120.0s] Middle", joined)
+        self.assertIn("[240.0s] Ending", joined)
+
+    def test_chunks_respect_size_limit(self):
+        segments = [{"start": i * 10, "text": "spoken words " * 30} for i in range(8)]
+        chunks = chunk_transcript(segments, max_chars=1200)
+        self.assertGreater(len(chunks), 1)
+        self.assertTrue(all(len(chunk) <= 1200 for chunk in chunks))
+
     def test_rejects_invalid_and_out_of_range_candidates(self):
         result = normalize_clips([
             {"start": -1, "end": 20, "score": 90},
