@@ -9,7 +9,7 @@ A general-purpose, local-first AI clipping MVP for podcasts, interviews, gaming 
 - Ask Gemini 2.5 Flash to identify and rank self-contained moments.
 - Validate model timestamps, reject malformed candidates and remove overlapping selections.
 - Review and select candidate clips before rendering.
-- Export 9:16 MP4 clips with blurred background fill and burned-in word captions.
+- Export 9:16 MP4 clips with blurred background fill, burned-in word captions and sampled face-aware horizontal framing.
 - Gemini key is entered at runtime and sent in an HTTP header; it is not saved by the app.
 
 ## Requirements
@@ -17,7 +17,7 @@ A general-purpose, local-first AI clipping MVP for podcasts, interviews, gaming 
 - Python 3.10+
 - FFmpeg and FFprobe installed and available in PATH
 - Gemini API key (used for moment selection)
-- 4 GB+ RAM recommended; choose Whisper `tiny` or `base` on lower-memory machines.
+- 4 GB+ RAM recommended; choose Whisper `tiny` or `base` on lower-memory machines. OpenCV face detection adds CPU work during rendering.
 
 ## Windows setup
 
@@ -50,7 +50,7 @@ python -m unittest discover -s tests -v
 - This MVP focuses on spoken content. Silent action/gameplay highlight detection is not implemented.
 - Local Whisper transcription can be slow on CPU. The first run downloads the selected model.
 - Gemini receives transcript text only, not the uploaded video or audio. Very long transcripts are capped before AI analysis, so later portions may not be considered.
-- Vertical output uses a blurred background and centered full-frame foreground; speaker/face tracking is not implemented.
+- Vertical output uses sampled Haar face detection to keep the largest visible face near the crop center, with a centered fallback when no face is detected. It is not identity-aware multi-speaker tracking and does not track gameplay objects.
 - No automatic publishing, campaign scraping, or view/earnings guarantees.
 - AI scores are suggestions, not predictions of virality.
 - Respect source ownership, creator permissions, campaign rules and platform terms. Credit alone is not permission.
