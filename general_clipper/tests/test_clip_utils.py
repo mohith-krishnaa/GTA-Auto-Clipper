@@ -1,7 +1,7 @@
 import unittest
 
 from clip_utils import chunk_transcript, crop_x_expression, group_caption_words, normalize_clips
-from visual_utils import rank_visual_windows
+from visual_utils import detect_gta_hud_cues, rank_gta_event_windows, rank_visual_windows
 
 
 class NormalizeClipsTests(unittest.TestCase):
@@ -100,6 +100,30 @@ class VisualWindowTests(unittest.TestCase):
         samples = [{"timestamp": float("nan"), "motion": 1}, {"timestamp": 10, "motion": 0.9, "cut": 0.2}]
         clips = rank_visual_windows(samples, 40, 2, 15, 20)
         self.assertTrue(all(0 <= clip["start"] < clip["end"] <= 40 for clip in clips))
+
+
+
+class GtaHudEventTests(unittest.TestCase):
+    def test_detects_known_gta_hud_cues_and_ignores_generic_text(self):
+        hits = detect_gta_hud_cues([
+            {"timestamp": 10, "text": "MISSION PASSED"},
+            {"timestamp": 20, "text": "WASTED"},
+            {"timestamp": 30, "text": "this was a crazy mission"},
+            {"timestamp": 40, "text": "NEW RECORD"},
+        ])
+        self.assertEqual([hit["cue"] for hit in hits], ["MISSION PASSED", "WASTED", "NEW RECORD"])
+
+    def test_ranks_event_clips_with_lead_in_and_no_overlap(self):
+        hits = [
+            {"timestamp": 30, "cue": "WASTED", "weight": 1.0},
+            {"timestamp": 32, "cue": "WASTED", "weight": 1.0},
+            {"timestamp": 100, "cue": "MISSION PASSED", "weight": 1.0},
+        ]
+        clips = rank_gta_event_windows(hits, 150, 3, 30, lead_in=6)
+        self.assertEqual(len(clips), 2)
+        self.assertEqual(clips[0]["start"], 24)
+        self.assertIn("WASTED", clips[0]["hook"])
+        self.assertTrue(clips[0]["end"] <= clips[1]["start"])
 
 
 if __name__ == "__main__":
