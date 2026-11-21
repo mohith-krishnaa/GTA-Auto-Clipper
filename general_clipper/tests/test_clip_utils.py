@@ -25,8 +25,8 @@ class NormalizeClipsTests(unittest.TestCase):
     def test_crop_expression_tracks_face_centers(self):
         expression = crop_x_expression([(0, 500), (2, 900)], 400, 1200)
         self.assertIn("if(lt(t", expression)
-        self.assertIn("100.00", expression)
-        self.assertIn("500.00", expression)
+        self.assertIn("300.00", expression)
+        self.assertIn("700.00", expression)
 
     def test_crop_expression_clamps_to_frame_bounds(self):
         expression = crop_x_expression([(0, -100)], 400, 1200)
