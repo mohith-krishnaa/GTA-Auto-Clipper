@@ -102,3 +102,34 @@ def crop_x_expression(points, crop_width, source_width):
         interpolation = f"({x0:.2f}+({x1-x0:.2f})*(t-{t0:.3f})/{span:.3f})"
         expression = f"if(lt(t\\,{t1:.3f})\\,{interpolation}\\,{expression})"
     return expression
+
+
+def group_caption_words(words, start, end, max_words=5, max_gap=0.55):
+    """Clip and group timed words into readable caption phrases."""
+    if max_words < 1 or max_gap < 0:
+        raise ValueError("max_words must be positive and max_gap cannot be negative.")
+    clean = []
+    for word in words:
+        if not isinstance(word, dict):
+            continue
+        try:
+            word_start = max(float(start), float(word["start"]))
+            word_end = min(float(end), float(word["end"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        token = str(word.get("text") or "").strip()
+        if token and math.isfinite(word_start) and math.isfinite(word_end) and word_end > word_start:
+            clean.append({"start": word_start, "end": word_end, "text": token})
+    clean.sort(key=lambda item: (item["start"], item["end"]))
+    groups, current = [], []
+    for word in clean:
+        if current and (
+            len(current) >= max_words
+            or word["start"] - current[-1]["end"] > max_gap
+        ):
+            groups.append(current)
+            current = []
+        current.append(word)
+    if current:
+        groups.append(current)
+    return groups
