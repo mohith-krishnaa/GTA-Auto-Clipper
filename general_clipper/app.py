@@ -208,8 +208,8 @@ def render_clip(video, words, clip, out_path, temp_dir):
 if uploaded:
     st.video(uploaded)
     if st.button("Analyze video and find clips", type="primary", use_container_width=True):
-        if not api_key:
-            st.error("Enter a Gemini API key in the sidebar.")
+        if not api_key and not detect_visual:
+            st.error("Enter a Gemini API key or enable visual activity detection.")
         elif not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
             st.error("FFmpeg and FFprobe must both be installed and available in PATH.")
         else:
@@ -227,8 +227,6 @@ if uploaded:
                     extract_audio(source, audio)
                     segments, words, language = transcribe(audio, model_size)
                     transcript_chunks = chunk_transcript(segments)
-                    if not transcript_chunks:
-                        raise ValueError("No speech was detected. This MVP currently selects moments from spoken content.")
                     st.session_state["clip_job"] = {
                         "workdir": workdir, "source": source, "words": words,
                         "language": language, "transcript_chunks": transcript_chunks,
@@ -247,24 +245,28 @@ if uploaded:
                         duration = float(probe.stdout.strip())
                         candidates = []
                         failures = []
-                        progress = st.progress(0, text="Analyzing transcript chunks...")
                         total_chunks = len(job["transcript_chunks"])
-                        for index, transcript_chunk in enumerate(job["transcript_chunks"], 1):
-                            try:
-                                candidates.extend(
-                                    ask_gemini(api_key, transcript_chunk, clip_count, min_len, max_len)
-                                )
-                            except Exception as exc:
-                                failures.append(f"Chunk {index}: {exc}")
-                            progress.progress(index / total_chunks,
-                                               text=f"Analyzed chunk {index} of {total_chunks}")
+                        if total_chunks and api_key:
+                            progress = st.progress(0, text="Analyzing transcript chunks...")
+                            for index, transcript_chunk in enumerate(job["transcript_chunks"], 1):
+                                try:
+                                    candidates.extend(ask_gemini(api_key, transcript_chunk, clip_count, min_len, max_len))
+                                except Exception as exc:
+                                    failures.append(f"Chunk {index}: {exc}")
+                                progress.progress(index / total_chunks, text=f"Analyzed chunk {index} of {total_chunks}")
+                        elif total_chunks and not api_key:
+                            st.warning("Speech-based AI ranking skipped because no Gemini key was supplied.")
+                        if detect_visual:
+                            with st.spinner("Scanning sampled frames for motion and scene changes..."):
+                                visual_samples = scan_visual_activity(job["source"], duration)
+                            candidates.extend(rank_visual_windows(visual_samples, duration, clip_count, min_len, max_len))
                         clean = normalize_clips(candidates, duration, clip_count, min_len, max_len)
-                        if not clean and failures:
+                        if not clean and failures and not detect_visual:
                             raise RuntimeError("Gemini analysis failed for every transcript chunk. " + failures[0])
                         if failures:
                             st.warning(f"{len(failures)} transcript chunk(s) could not be analyzed; results may be incomplete.")
                         if not clean:
-                            st.warning("No valid clips were returned. Try a different clip duration or Whisper model.")
+                            st.warning("No useful clips were detected. This can happen with static footage or low motion.")
                         st.session_state["clip_job"]["clips"] = clean
                         st.session_state["clip_job"]["duration"] = duration
                         st.session_state["clip_job"]["transcript_chunks"] = []
