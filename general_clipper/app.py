@@ -9,7 +9,7 @@ from pathlib import Path
 import requests
 import streamlit as st
 from faster_whisper import WhisperModel
-from clip_utils import chunk_transcript, normalize_clips
+from clip_utils import chunk_transcript, crop_x_expression, normalize_clips
 
 st.set_page_config(page_title="MK AI Clipper", page_icon="✂️", layout="wide")
 
@@ -24,7 +24,7 @@ h1, h2, h3 {letter-spacing: -0.04em;}
 """, unsafe_allow_html=True)
 
 st.title("✂️ MK AI Clipper")
-st.caption("Turn long videos into ranked vertical clips. Local transcription · AI moment detection · FFmpeg rendering")
+st.caption("Turn long videos into ranked vertical clips. Local transcription · AI moment detection · face-aware vertical framing")
 
 with st.sidebar:
     st.subheader("AI settings")
@@ -115,15 +115,53 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         events.append(f"Dialogue: 0,{ass_time(a-start)},{ass_time(max(a-start+0.12,b-start))},Default,,0,0,0,,{token}")
     Path(path).write_text(header + "\n".join(events), encoding="utf-8")
 
+def detect_face_crop_points(video, start, end, sample_seconds=0.75):
+    """Sample the clip for faces and return crop centers in source-pixel coordinates."""
+    capture = cv2.VideoCapture(video)
+    if not capture.isOpened():
+        raise RuntimeError("OpenCV could not open the video for face tracking.")
+    width = capture.get(cv2.CAP_PROP_FRAME_WIDTH)
+    height = capture.get(cv2.CAP_PROP_FRAME_HEIGHT)
+    if not width or not height:
+        capture.release()
+        raise RuntimeError("Could not read source video dimensions.")
+    cascade = cv2.CascadeClassifier(
+        cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+    )
+    points = []
+    timestamp = start
+    try:
+        while timestamp < end:
+            capture.set(cv2.CAP_PROP_POS_MSEC, timestamp * 1000)
+            ok, frame = capture.read()
+            if ok:
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                faces = cascade.detectMultiScale(
+                    gray, scaleFactor=1.1, minNeighbors=5, minSize=(48, 48)
+                )
+                if len(faces):
+                    x, y, w, h = max(faces, key=lambda box: box[2] * box[3])
+                    points.append((timestamp - start, x + w / 2))
+            timestamp += sample_seconds
+    finally:
+        capture.release()
+    return points, int(width), int(height)
+
+
 def render_clip(video, words, clip, out_path, temp_dir):
     start, end = float(clip["start"]), float(clip["end"])
     ass = os.path.join(temp_dir, "captions.ass")
     make_ass(words, start, end, ass)
-    # Blur-fill portrait layout keeps the complete source frame visible.
+    points, source_width, source_height = detect_face_crop_points(video, start, end)
+    scaled_width = source_width * 1920 / source_height
+    crop_width = min(1080, scaled_width)
+    scaled_points = [(t, center * 1920 / source_height) for t, center in points]
+    crop_x = crop_x_expression(scaled_points, 1080, scaled_width)
+    # Track the largest detected face; fall back to a centered crop when none is found.
     escaped = ass.replace("\\", "/").replace(":", "\\:")
     vf = ("split=2[bg][fg];"
           "[bg]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=22:10[bg];"
-          "[fg]scale=1080:1920:force_original_aspect_ratio=decrease[fg];"
+          f"[fg]scale=-2:1920,crop=1080:1920:x='{crop_x}':y=(ih-1920)/2[fg];"
           f"[bg][fg]overlay=(W-w)/2:(H-h)/2,subtitles='{escaped}'")
     p = run(["ffmpeg", "-y", "-ss", str(start), "-i", video, "-t", str(end-start),
              "-filter_complex", vf, "-c:v", "libx264", "-preset", "veryfast",
