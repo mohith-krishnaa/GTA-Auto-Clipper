@@ -1,6 +1,6 @@
 import unittest
 
-from clip_utils import chunk_transcript, normalize_clips
+from clip_utils import chunk_transcript, crop_x_expression, normalize_clips
 
 
 class NormalizeClipsTests(unittest.TestCase):
@@ -21,6 +21,16 @@ class NormalizeClipsTests(unittest.TestCase):
         chunks = chunk_transcript(segments, max_chars=1200)
         self.assertGreater(len(chunks), 1)
         self.assertTrue(all(len(chunk) <= 1200 for chunk in chunks))
+
+    def test_crop_expression_tracks_face_centers(self):
+        expression = crop_x_expression([(0, 500), (2, 900)], 400, 1200)
+        self.assertIn("if(lt(t", expression)
+        self.assertIn("100.00", expression)
+        self.assertIn("500.00", expression)
+
+    def test_crop_expression_clamps_to_frame_bounds(self):
+        expression = crop_x_expression([(0, -100)], 400, 1200)
+        self.assertEqual(expression, "0.00")
 
     def test_rejects_invalid_and_out_of_range_candidates(self):
         result = normalize_clips([
