@@ -9,7 +9,7 @@ A general-purpose, local-first AI clipping MVP for podcasts, interviews, gaming 
 - Ask Gemini 2.5 Flash to identify and rank self-contained moments.
 - Validate model timestamps, reject malformed candidates and remove overlapping selections.
 - Review and select candidate clips before rendering.
-- Export 9:16 MP4 clips with blurred background fill, burned-in word captions and sampled face-aware horizontal framing.
+- Export 9:16 MP4 clips with blurred background fill, timed phrase captions with word-by-word karaoke highlighting, and sampled face-aware horizontal framing.
 - Gemini key is entered at runtime and sent in an HTTP header; it is not saved by the app.
 
 ## Requirements
