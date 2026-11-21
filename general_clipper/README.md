@@ -1,12 +1,13 @@
 # MK AI Clipper
 
-A general-purpose, local-first AI clipping MVP for podcasts, interviews, gaming videos, tutorials and other speech-led content.
+A general-purpose, local-first AI clipping MVP for podcasts, interviews, gaming videos, tutorials and other video content.
 
 ## Features
 
 - Upload a local video (MP4, MOV, MKV, WebM or M4V).
 - Transcribe speech locally with faster-whisper (CPU int8), then analyze the complete transcript in bounded chunks.
-- Ask Gemini 2.5 Flash to identify and rank self-contained moments.
+- Ask Gemini 2.5 Flash to identify and rank self-contained speech-led moments.
+- Optionally scan sampled video frames locally and rank high-motion / scene-change windows, including footage with no speech.
 - Validate model timestamps, reject malformed candidates and remove overlapping selections.
 - Review and select candidate clips before rendering.
 - Export 9:16 MP4 clips with blurred background fill, timed phrase captions with word-by-word karaoke highlighting, and sampled face-aware horizontal framing.
@@ -47,9 +48,9 @@ python -m unittest discover -s tests -v
 
 ## Notes and limitations
 
-- This MVP focuses on spoken content. Silent action/gameplay highlight detection is not implemented.
+- Speech-led moments use Gemini transcript analysis. Experimental gameplay/action detection uses local frame-difference and color-histogram scene-change heuristics; it does not recognize kills, wins, goals, jokes, game UI events, or semantic meaning. Treat these as rough candidates and review manually.
 - Local Whisper transcription can be slow on CPU. The first run downloads the selected model.
-- Gemini receives transcript text only, not the uploaded video or audio. Long transcripts are split into bounded requests so later portions are analyzed too; API quotas and processing time increase with video length.
+- Gemini receives transcript text only, not the uploaded video or audio. Long transcripts are split into bounded requests so later portions are analyzed too; API quotas and processing time increase with video length. Visual frame analysis stays local.
 - Vertical output uses sampled Haar face detection to keep the largest visible face near the crop center, with a centered fallback when no face is detected. It is not identity-aware multi-speaker tracking and does not track gameplay objects.
 - No automatic publishing, campaign scraping, or view/earnings guarantees.
 - AI scores are suggestions, not predictions of virality.
