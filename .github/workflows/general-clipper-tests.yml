@@ -27,6 +27,6 @@ jobs:
         with:
           python-version: "3.11"
       - name: Compile Python modules
-        run: python -m compileall -q app.py clip_utils.py tests
+        run: python -m compileall -q app.py clip_utils.py visual_utils.py tests
       - name: Run validation tests
         run: python -m unittest discover -s tests -v
