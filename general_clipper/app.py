@@ -9,6 +9,7 @@ from pathlib import Path
 import requests
 import streamlit as st
 from faster_whisper import WhisperModel
+from clip_utils import normalize_clips
 
 st.set_page_config(page_title="MK AI Clipper", page_icon="✂️", layout="wide")
 
@@ -69,15 +70,18 @@ Score from 0 to 100. Timestamps are seconds from the start of the source.
 TRANSCRIPT:
 {transcript[:90000]}"""
     response = requests.post(
-        url, params={"key": key},
+        url, headers={"x-goog-api-key": key},
         json={"contents": [{"parts": [{"text": prompt}]}],
               "generationConfig": {"responseMimeType": "application/json", "temperature": 0.2}},
         timeout=120,
     )
     response.raise_for_status()
     data = response.json()
-    text = data["candidates"][0]["content"]["parts"][0]["text"]
-    parsed = json.loads(text)
+    try:
+        text = data["candidates"][0]["content"]["parts"][0]["text"]
+        parsed = json.loads(text)
+    except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
+        raise RuntimeError("Gemini returned an unexpected response. Try again or reduce the transcript size.") from exc
     return parsed.get("clips", [])
 
 def ass_time(seconds):
@@ -132,12 +136,17 @@ if uploaded:
     if st.button("Analyze video and find clips", type="primary", use_container_width=True):
         if not api_key:
             st.error("Enter a Gemini API key in the sidebar.")
-        elif not shutil.which("ffmpeg"):
-            st.error("FFmpeg was not found. Install FFmpeg and add it to PATH.")
+        elif not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
+            st.error("FFmpeg and FFprobe must both be installed and available in PATH.")
         else:
+            previous_job = st.session_state.pop("clip_job", None)
+            st.session_state.pop("rendered", None)
+            if previous_job:
+                shutil.rmtree(previous_job.get("workdir", ""), ignore_errors=True)
             with st.spinner("Transcribing locally. The first run may download the Whisper model..."):
                 workdir = tempfile.mkdtemp(prefix="mkclip_")
-                source = os.path.join(workdir, uploaded.name)
+                safe_name = Path(uploaded.name).name
+                source = os.path.join(workdir, safe_name)
                 Path(source).write_bytes(uploaded.getbuffer())
                 audio = os.path.join(workdir, "audio.wav")
                 try:
@@ -154,19 +163,17 @@ if uploaded:
                     st.error(f"Processing failed: {exc}")
                     shutil.rmtree(workdir, ignore_errors=True)
             job = st.session_state.get("clip_job")
-            if job:
+            if job and job.get("source") == source:
                 with st.spinner("AI is ranking the strongest moments..."):
                     try:
                         clips = ask_gemini(api_key, job["transcript"], clip_count, min_len, max_len)
-                        duration = float(run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
-                                              "-of", "default=noprint_wrappers=1:nokey=1", job["source"]]).stdout.strip())
-                        clean = []
-                        for c in clips:
-                            a, b = float(c["start"]), float(c["end"])
-                            if 0 <= a < b <= duration and min_len <= b-a <= max_len:
-                                clean.append({**c, "start": round(a, 2), "end": round(b, 2)})
-                        clean.sort(key=lambda x: int(x.get("score", 0)), reverse=True)
-                        st.session_state["clip_job"]["clips"] = clean[:clip_count]
+                        probe = run(["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                                     "-of", "default=noprint_wrappers=1:nokey=1", job["source"]])
+                        if probe.returncode:
+                            raise RuntimeError("FFprobe could not read the uploaded video: " + probe.stderr[-800:])
+                        duration = float(probe.stdout.strip())
+                        clean = normalize_clips(clips, duration, clip_count, min_len, max_len)
+                        st.session_state["clip_job"]["clips"] = clean
                         st.session_state["clip_job"]["duration"] = duration
                     except Exception as exc:
                         st.error(f"AI analysis failed: {exc}")
