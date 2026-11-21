@@ -1,5 +1,51 @@
-"""Validation helpers for AI-selected clip candidates."""
+"""Validation and transcript chunking helpers for the AI clipper."""
 import math
+
+
+def chunk_transcript(segments, max_chars=18000):
+    """Group timestamped Whisper segments without dropping later parts of a video."""
+    if max_chars < 1000:
+        raise ValueError("max_chars must be at least 1000.")
+
+    chunks = []
+    current = []
+    current_size = 0
+
+    for segment in segments:
+        if not isinstance(segment, dict):
+            continue
+        text = str(segment.get("text") or "").strip()
+        if not text:
+            continue
+        try:
+            timestamp = float(segment["start"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if not math.isfinite(timestamp) or timestamp < 0:
+            continue
+
+        line = f"[{timestamp:.1f}s] {text}"
+        # Whisper segments are normally short; still split an unusually long one.
+        while len(line) > max_chars:
+            if current:
+                chunks.append("\n".join(current))
+                current, current_size = [], 0
+            chunks.append(line[:max_chars])
+            line = line[max_chars:]
+
+        if not line:
+            continue
+        extra = len(line) + (1 if current else 0)
+        if current and current_size + extra > max_chars:
+            chunks.append("\n".join(current))
+            current, current_size = [], 0
+            extra = len(line)
+        current.append(line)
+        current_size += extra
+
+    if current:
+        chunks.append("\n".join(current))
+    return chunks
 
 
 def normalize_clips(candidates, duration, count, min_length, max_length):
