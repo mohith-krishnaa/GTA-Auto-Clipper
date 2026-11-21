@@ -12,6 +12,7 @@ import requests
 import streamlit as st
 from faster_whisper import WhisperModel
 from clip_utils import chunk_transcript, crop_x_expression, group_caption_words, normalize_clips
+from visual_utils import rank_visual_windows
 
 st.set_page_config(page_title="MK AI Clipper", page_icon="✂️", layout="wide")
 
@@ -34,6 +35,7 @@ with st.sidebar:
     model_size = st.selectbox("Whisper model", ["tiny", "base", "small"], index=1,
                               help="Tiny/base are better for low-memory computers. First run downloads the model.")
     clip_count = st.slider("Clips to generate", 1, 10, 5)
+    detect_visual = st.checkbox("Find gameplay/action moments (experimental)", value=True)
     min_len, max_len = st.slider("Clip duration (seconds)", 15, 90, (25, 55))
     st.caption("Requires FFmpeg installed and available in PATH.")
 
@@ -121,6 +123,33 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
             f"Dialogue: 0,{ass_time(event_start)},{ass_time(event_end)},Default,,0,0,0,,{' '.join(karaoke)}"
         )
     Path(path).write_text(header + "\n".join(events), encoding="utf-8")
+
+
+def scan_visual_activity(video, duration, sample_seconds=1.0):
+    capture = cv2.VideoCapture(video)
+    if not capture.isOpened():
+        raise RuntimeError("OpenCV could not open the video for visual analysis.")
+    samples, previous_gray, previous_hist = [], None, None
+    timestamp = 0.0
+    try:
+        while timestamp < duration:
+            capture.set(cv2.CAP_PROP_POS_MSEC, timestamp * 1000)
+            ok, frame = capture.read()
+            if ok:
+                small = cv2.resize(frame, (320, 180), interpolation=cv2.INTER_AREA)
+                gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+                hist = cv2.calcHist([small], [0, 1, 2], None, [8, 8, 8], [0, 256, 0, 256, 0, 256])
+                cv2.normalize(hist, hist)
+                motion, cut = 0.0, 0.0
+                if previous_gray is not None:
+                    motion = float(cv2.absdiff(gray, previous_gray).mean()) / 255.0
+                    cut = float(cv2.compareHist(previous_hist, hist, cv2.HISTCMP_BHATTACHARYYA))
+                samples.append({"timestamp": timestamp, "motion": motion, "cut": cut})
+                previous_gray, previous_hist = gray, hist
+            timestamp += sample_seconds
+    finally:
+        capture.release()
+    return samples
 
 def detect_face_crop_points(video, start, end, sample_seconds=0.75):
     """Sample the clip for faces and return crop centers in source-pixel coordinates."""
