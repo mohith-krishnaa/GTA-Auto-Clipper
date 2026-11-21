@@ -161,7 +161,7 @@ def render_clip(video, words, clip, out_path, temp_dir):
     escaped = ass.replace("\\", "/").replace(":", "\\:")
     vf = ("split=2[bg][fg];"
           "[bg]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,boxblur=22:10[bg];"
-          f"[fg]scale=-2:1920,crop=1080:1920:x='{crop_x}':y=(ih-1920)/2[fg];"
+          f"[fg]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920:x='{crop_x}':y=(ih-1920)/2[fg];"
           f"[bg][fg]overlay=(W-w)/2:(H-h)/2,subtitles='{escaped}'")
     p = run(["ffmpeg", "-y", "-ss", str(start), "-i", video, "-t", str(end-start),
              "-filter_complex", vf, "-c:v", "libx264", "-preset", "veryfast",
