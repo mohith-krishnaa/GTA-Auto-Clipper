@@ -43,7 +43,7 @@ class NormalizeClipsTests(unittest.TestCase):
         ]
         groups = group_caption_words(words, 0.1, 2.3, max_words=3, max_gap=0.55)
         self.assertEqual([[w["text"] for w in group] for group in groups],
-                         [["Hello", "there", "friend"], ["Next"]])
+                         [["Hello", "there", "friend"], ["Next", "part"]])
         self.assertEqual(groups[0][0]["start"], 0.1)
         self.assertEqual(groups[-1][-1]["end"], 2.3)
 
